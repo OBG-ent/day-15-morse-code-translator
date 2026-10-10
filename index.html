@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Morse Code Translator</title>
+<style>
+  /* --- Page setup: dark, radio-operator vibe --- */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Courier New", Courier, monospace;
+    background: #0b0f14;
+    color: #e8f0e8;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 2rem 1rem;
+  }
+  .card {
+    width: 100%;
+    max-width: 640px;
+    background: #11161d;
+    border: 1px solid #2a3340;
+    border-radius: 14px;
+    padding: 2rem;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  }
+  h1 { font-size: 1.5rem; letter-spacing: 2px; color: #ffd54a; text-align: center; }
+  .subtitle { text-align: center; color: #8a94a3; margin: .4rem 0 1.4rem; font-size: .85rem; }
+  label { display: block; font-size: .75rem; color: #8a94a3; margin: 1rem 0 .4rem; letter-spacing: 1px; }
+  textarea {
+    width: 100%;
+    min-height: 110px;
+    background: #0b0f14;
+    color: #e8f0e8;
+    border: 1px solid #2a3340;
+    border-radius: 8px;
+    padding: .8rem;
+    font-family: inherit;
+    font-size: 1rem;
+    resize: vertical;
+  }
+  textarea:focus { outline: none; border-color: #ffd54a; }
+  .row { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: 1rem; }
+  button {
+    flex: 1;
+    min-width: 120px;
+    padding: .7rem;
+    font-family: inherit;
+    font-weight: bold;
+    font-size: .85rem;
+    letter-spacing: 1px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #ffd54a;
+    color: #11161d;
+    transition: transform .08s ease, opacity .15s ease;
+  }
+  button:hover { opacity: .9; }
+  button:active { transform: scale(.97); }
+  button.secondary { background: #22303f; color: #e8f0e8; }
+  #output {
+    min-height: 90px;
+    background: #0b0f14;
+    border: 1px dashed #2a3340;
+    border-radius: 8px;
+    padding: .8rem;
+    margin-top: .4rem;
+    word-break: break-all;
+    color: #7CFC00;
+    font-size: 1.05rem;
+    line-height: 1.6;
+  }
+  .hint { font-size: .75rem; color: #8a94a3; margin-top: 1.2rem; line-height: 1.7; }
+  .hint code { color: #ffd54a; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>· · · MORSE · · ·</h1>
+    <p class="subtitle">a morse code translator — type anything, get dots &amp; dashes</p>
+
+    <label for="input">YOUR MESSAGE (letters, numbers, punctuation)</label>
+    <textarea id="input" placeholder="e.g. hello world"></textarea>
+
+    <label>TRANSLATION</label>
+    <div id="output">··· --- ···</div>
+
+    <div class="row">
+      <button id="toMorse">TO MORSE</button>
+      <button id="toText" class="secondary">TO TEXT</button>
+      <button id="play" class="secondary">▶ PLAY SOUND</button>
+      <button id="copy" class="secondary">COPY</button>
+    </div>
+
+    <p class="hint">
+      Tip: separate letters with a space and words with <code>/</code>, e.g.
+      <code>···· · / ·-- --- ·-· ·-·· -··</code> = "hi world".<br/>
+      Played sounds use 600 Hz — the classic radio tone.
+    </p>
+  </div>
+
+<script>
+  // --- The morse alphabet: each character maps to dots (.) and dashes (-) ---
+  const MORSE = {
+    A: ".-", B: "-...", C: "-.-.", D: "-..", E: ".", F: "..-.",
+    G: "--.", H: "....", I: "..", J: ".---", K: "-.-", L: ".-..",
+    M: "--", N: "-.", O: "---", P: ".--.", Q: "--.-", R: ".-.",
+    S: "...", T: "-", U: "..-", V: "...-", W: ".--", X: "-..-",
+    Y: "-.--", Z: "--..",
+    0: "-----", 1: ".----", 2: "..---", 3: "...--", 4: "....-",
+    5: ".....", 6: "-....", 7: "--...", 8: "---..", 9: "----.",
+    ".": ".-.-.-", ",": "--..--", "?": "..--..", "!": "-.-.--",
+    "'": ".----.", "/": "-..-.", "(": "-.--.", ")": "-.--.-",
+    "&": ".-...", ":": "---...", ";": "-.-.-.", "=": "-...-",
+    "+": ".-.-.", "-": "-....-", "_": "..--.-", '"': ".-..-.",
+    "$": "...-..-", "@": ".--.-."
+  };
+  // Reverse lookup so we can translate morse back to text.
+  const TEXT = {};
+  for (const ch in MORSE) TEXT[MORSE[ch]] = ch;
+
+  const input = document.getElementById("input");
+  const output = document.getElementById("output");
+
+  // --- Text -> morse: uppercase each char, join letters with space, words with " / " ---
+  function toMorse(text) {
+    return text.toUpperCase().split(" ").map(word =>
+      word.split("").map(ch => MORSE[ch] || "?").join(" ")
+    ).join(" / ");
+  }
+
+  // --- Morse -> text: split words on " / ", letters on spaces ---
+  function toText(morse) {
+    return morse.trim().split(" / ").map(word =>
+      word.split(" ").map(code => TEXT[code] || "?").join("")
+    ).join(" ");
+  }
+
+  // Live translation as you type: auto-detect which direction to go.
+  input.addEventListener("input", () => {
+    const v = input.value;
+    // If it only contains dots, dashes, slashes and spaces, treat it as morse.
+    output.textContent = /^[.\-\/ ]*$/.test(v) && /[.\-]/.test(v)
+      ? toText(v)
+      : toMorse(v);
+  });
+
+  document.getElementById("toMorse").onclick = () => output.textContent = toMorse(input.value);
+  document.getElementById("toText").onclick  = () => output.textContent = toText(input.value);
+
+  // --- Copy the translation to the clipboard ---
+  document.getElementById("copy").onclick = async () => {
+    await navigator.clipboard.writeText(output.textContent);
+    const btn = document.getElementById("copy");
+    const old = btn.textContent;
+    btn.textContent = "COPIED ✓";
+    setTimeout(() => btn.textContent = old, 1200);
+  };
+
+  // --- Play the morse as sound using the Web Audio API ---
+  document.getElementById("play").onclick = () => {
+    const code = output.textContent;
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const UNIT = 0.08;                 // one "dot" = 80ms
+    let t = ctx.currentTime + 0.05;    // tiny delay before starting
+
+    // Schedule one beep at time t, lasting `dur` seconds.
+    function beep(at, dur) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 600;       // classic morse tone
+      gain.gain.setValueAtTime(0.4, at);
+      gain.gain.setValueAtTime(0, at + dur);
+      osc.start(at); osc.stop(at + dur + 0.01);
+    }
+
+    for (const ch of code) {
+      if (ch === ".")      { beep(t, UNIT);       t += UNIT * 2; }  // dot + gap
+      else if (ch === "-") { beep(t, UNIT * 3);    t += UNIT * 4; }  // dash + gap
+      else if (ch === "/") { t += UNIT * 4; }                       // word gap
+      else                 { t += UNIT * 2; }                       // letter gap
+    }
+  };
+</script>
+</body>
+</html>
